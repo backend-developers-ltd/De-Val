@@ -1,6 +1,7 @@
 import bittensor as bt
 import time
 from deval.base.validator import BaseValidatorNeuron
+from deval.compute_horde_client import ComputeHordeClient
 from deval.rewards.reward import RewardResult
 from deval.rewards.pipeline import RewardPipeline
 from deval.task_repository import TaskRepository
@@ -60,6 +61,10 @@ class Validator(BaseValidatorNeuron):
             subtensor=self.subtensor, wallet=None, subnet_uid=self.config.netuid
         )
 
+        self.compute_horde_client = (
+            ComputeHordeClient(self.wallet.hotkey) if self.config.neuron.use_compute_horde else None
+        )
+
         bt.logging.info("load_state()")
         self.weights = []
         self.load_state()
@@ -79,6 +84,7 @@ class Validator(BaseValidatorNeuron):
                 forward_start_time, 
                 self.config.neuron.timeout
             )
+
             self.task_repo = TaskRepository(allowed_models=self.allowed_models)
 
             # generate all tasks for miners to be evaluated on
@@ -111,13 +117,22 @@ class Validator(BaseValidatorNeuron):
                     chain_metadata = self.metadata_store.retrieve_model_metadata(hotkey)
                     miner_state.add_chain_metadata(chain_metadata)
 
-                    miner_state = Validator.run_epoch(
-                        self.contest,
-                        miner_state, 
-                        self.task_repo, 
-                        self.miner_docker_client,
-                        self.wandb_logger
-                    )
+                    if self.compute_horde_client is not None:
+                        miner_state = await self.compute_horde_client.run_epoch_on_compute_horde(
+                            contest=self.contest,
+                            miner_state=miner_state,
+                            task_repo=self.task_repo,
+                        )
+                    else:
+                        miner_state = Validator.run_epoch(
+                            self.contest,
+                            miner_state,
+                            self.task_repo,
+                            self.miner_docker_client,
+                            self.wandb_logger
+                        )
+
+                    bt.logging.info(f"Rewards for uid: {uid} are: {miner_state.rewards}")
 
                 # update contest
                 self.contest.update_model_state_with_rewards(miner_state) 
@@ -204,9 +219,9 @@ class Validator(BaseValidatorNeuron):
 
             if i % 10 == 0:
                 container_sz = docker_client.get_container_size()
-                if container_sz > constants.max_model_size_gbs + 2:
+                if container_sz is not None and container_sz > constants.max_model_size_gbs + 2:
                     break
-                if abs(curr_container_sz - container_sz) > 2:
+                if container_sz is not None and abs(curr_container_sz - container_sz) > 2:
                     break
 
             responses.append(bt_response)
