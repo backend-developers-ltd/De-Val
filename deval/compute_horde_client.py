@@ -91,8 +91,6 @@ class ComputeHordeClient:
                 miner_state.coldkey,
                 "--netuid",
                 str(miner_state.netuid),
-                "--forward-start-time",
-                str(int(contest.start_time_datetime.timestamp())),
                 "--timeout",
                 str(contest.timeout),
             ],

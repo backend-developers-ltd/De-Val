@@ -16,6 +16,7 @@ from deval.compute_horde_settings import (
     COMPUTE_HORDE_VOLUME_TASK_REPO_PATH,
 )
 from deval.task_repository import TaskRepository
+from deval.utils.constants import constants
 from deval.utils.logging import WandBLogger
 from deval.validator import Validator
 
@@ -39,12 +40,12 @@ def get_args():
         help="Device (string, optional)",
         default="cuda" if torch.cuda.is_available() else "cpu",
     )
-    parser.add_argument(
-        "--forward-start-time",
-        type=int,
-        required=False,
-        help="Forward start time (int, required)",
-    )
+    # parser.add_argument(
+    #     "--forward-start-time",
+    #     type=int,
+    #     required=False,
+    #     help="Forward start time (int, required)",
+    # )
     parser.add_argument(
         "--timeout",
         type=int,
@@ -80,7 +81,7 @@ def main():
 
         contest = DeValContest(
             reward_pipeline=reward_pipeline,
-            forward_start_time=args.forward_start_time,
+            forward_start_time=0,  # This validation is done before sending task to Compute Horde.
             timeout=args.timeout,
         )
 
@@ -91,6 +92,14 @@ def main():
         miner_docker_client = MinerDockerClient(api_url="http://localhost:8000")
 
         miner_docker_client._poll_service_for_readiness(500)
+
+        container_size = 0  # Skip this validation for now.
+        model_hash = miner_docker_client.get_model_hash()
+        model_coldkey = miner_docker_client.get_model_coldkey()
+        bt.logging.info(f"Recording model hash: {model_hash} for uid: {miner_state.uid} with coldkey: {model_coldkey}")
+        is_valid = contest.validate_model(miner_state, model_hash, model_coldkey, container_size, constants.max_model_size_gbs+ 2)
+        if not is_valid:
+            return miner_state
 
         wandb_logger = WandBLogger(None, None, active_tasks, None, force_off=True)
 
