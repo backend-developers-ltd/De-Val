@@ -98,29 +98,28 @@ def main():
         model_coldkey = miner_docker_client.get_model_coldkey()
         bt.logging.info(f"Recording model hash: {model_hash} for uid: {miner_state.uid} with coldkey: {model_coldkey}")
         is_valid = contest.validate_model(miner_state, model_hash, model_coldkey, container_size, constants.max_model_size_gbs+ 2)
-        if not is_valid:
-            return miner_state
 
-        wandb_logger = WandBLogger(None, None, active_tasks, None, force_off=True)
+        if is_valid:
+            wandb_logger = WandBLogger(None, None, active_tasks, None, force_off=True)
 
-        for task_name, tasks in task_repo.get_all_tasks():
-            bt.logging.debug(f"Running task {task_name}")
-            miner_state = Validator.run_step(
-                task_name,
-                tasks,
-                miner_docker_client,
-                miner_state,
-                contest,
-                wandb_logger,
-            )
+            for task_name, tasks in task_repo.get_all_tasks():
+                bt.logging.debug(f"Running task {task_name}")
+                miner_state = Validator.run_step(
+                    task_name,
+                    tasks,
+                    miner_docker_client,
+                    miner_state,
+                    contest,
+                    wandb_logger,
+                )
 
-        bt.logging.debug(miner_state.rewards)
-        print("Completed epoch")
+            bt.logging.debug(miner_state.rewards)
+            bt.logging.info("Completed epoch")
 
         with open(COMPUTE_HORDE_ARTIFACT_OUTPUT_PATH, "wb") as f:
             pickle.dump(miner_state, f)
 
-        print("Terminating miner API")
+        bt.logging.debug("Terminating miner API")
         uvicorn_process.terminate()
 
 
