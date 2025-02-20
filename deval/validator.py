@@ -157,6 +157,21 @@ class Validator(BaseValidatorNeuron):
         self.reset()
         #restart_current_process()
 
+
+    async def run_epoch_on_compute_horde(self, miner_state: ModelState) -> ModelState:
+        # Copied from Contest
+        # ensure the last commit date is before forward start time
+        if self.contest.start_time_datetime < miner_state.get_last_commit_date():
+            print(f"Miner's start date {miner_state.get_last_commit_date()} is before validators epoch start time {self.start_time_datetime}")
+            return miner_state
+
+        # The rest of the validation will be done in compute horde
+        miner_state = await self.compute_horde_client.run_epoch_on_compute_horde(
+            contest=self.contest,
+            miner_state=miner_state,
+            task_repo=self.task_repo,
+        )
+        return miner_state
         
     @staticmethod
     def run_epoch(
