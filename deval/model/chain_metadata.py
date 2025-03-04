@@ -59,7 +59,7 @@ class ChainModelMetadataStore:
             commitment = metadata["info"]["fields"][0][0]
             raw_data = commitment[list(commitment.keys())[0]]
             chain_str = bytes(raw_data[0]).decode()
-            print(chain_str)
+            # print(chain_str)
 
             # format our output
             parsed_metadata = json.loads(chain_str)
