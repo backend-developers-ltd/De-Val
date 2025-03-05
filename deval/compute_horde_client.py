@@ -95,7 +95,8 @@ class ComputeHordeClient:
                     COMPUTE_HORDE_VOLUME_TASK_REPO_FILENAME, task_repo_pkl
                 ),
                 COMPUTE_HORDE_VOLUME_MODEL_PATH: HuggingfaceInputVolume(
-                    repo_id=miner_state.get_model_url()
+                    repo_id=miner_state.get_model_url(),
+                    revision=miner_state.last_commit_id,
                 ),
             },
         )
