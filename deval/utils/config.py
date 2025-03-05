@@ -1,6 +1,6 @@
 # The MIT License (MIT)
-# Copyright © 2024 Yuma Rao
-# Copyright © 2023 Opentensor Foundation
+# Copyright 2024 Yuma Rao
+# Copyright 2023 Opentensor Foundation
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
 # documentation files (the “Software”), to deal in the Software without restriction, including without limitation
@@ -25,7 +25,6 @@ from deval.task_repository import TASKS
 from deval.llms.config import SUPPORTED_MODELS
 
 logger = logging.getLogger("deval")
-
 
 
 def check_config(cls, config: "bt.Config"):
@@ -418,6 +417,12 @@ def add_validator_args(cls, parser):
         default=False,
     )
 
+    parser.add_argument(
+        "--neuron.task_repository_class",
+        type=str,
+        help="Python import path to a custom TaskRepository class (e.g., 'mypackage.repository.CustomTaskRepository'). If not set, uses the default TaskRepository.",
+        default=None,
+    )
 
 
 def config(cls):
