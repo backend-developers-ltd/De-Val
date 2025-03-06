@@ -17,15 +17,19 @@ class ModelState:
         self.fs = HfFileSystem()
 
         self.repo_id = repo_id
-        self.model_id = model_id 
+        self.model_id = model_id
         self.uid = uid
         self.netuid = netuid
         self.substrate_url = get_substrate_url(netuid)
 
-        
+
         # defaults
         self.block = None
         self.chain_model_hash = None
+        self._last_commit = None
+        self.last_commit_id: str | None = None
+        self.last_commit_date: datetime | None = None
+        self.last_safetensor_update: datetime | None = None
 
         model_url = self.get_model_url()
         for _ in range(3):
@@ -43,8 +47,9 @@ class ModelState:
         if self.is_valid_repo:
             for _ in range(3):
                 try:
-                    self.last_commit_date: datetime = self.get_last_commit_date()
-                    self.last_safetensor_update: datetime = self.get_last_model_update_date()
+                    self.last_commit_id = self.get_last_commit_id()
+                    self.last_commit_date = self.get_last_commit_date()
+                    self.last_safetensor_update = self.get_last_model_update_date()
                 except Exception as e:
                     bt.logging.info(f"Unable to get commit or safetensor date {e}")
                     time.sleep(10)
@@ -67,12 +72,27 @@ class ModelState:
     def get_model_url(self):
         return self.repo_id + "/" + self.model_id
 
-    def get_last_commit_date(self) -> datetime | None:
-        commits = self.api.list_repo_commits(repo_id=self.get_model_url(), repo_type="model", revision="main")
+    def get_last_commit(self):
+        if self._last_commit is None:
+            commits = self.api.list_repo_commits(repo_id=self.get_model_url(), repo_type="model", revision="main")
 
-        if len(commits) > 0:
-            return commits[0].created_at
-        else: 
+            if len(commits) > 0:
+                self._last_commit = commits[0]
+            else:
+                bt.logging.info(f"No commits found for {self.get_model_url()}, return No Commit")
+
+        return self._last_commit
+
+    def get_last_commit_id(self) -> str | None:
+        commit = self.get_last_commit()
+        if commit is not None:
+            return commit.commit_id
+
+    def get_last_commit_date(self) -> datetime | None:
+        commit = self.get_last_commit()
+        if commit is not None:
+            return commit.created_at
+        else:
             bt.logging.info(f"No commits found for {self.get_model_url()}, return No Commit Date")
             return None
 
@@ -106,13 +126,13 @@ class ModelState:
         return sum(sizes)
 
     def _get_miner_registration_block(
-        self, 
+        self,
         uid: int,
     ) -> int:
-        i = 0 
+        i = 0
         backoff = 20
 
-        # add retry logic and sleep 
+        # add retry logic and sleep
         while i < 2:
 
             try:
@@ -121,20 +141,20 @@ class ModelState:
             except:
                 time.sleep(backoff)
                 backoff *= 1.5
-            
+
             i += 1
-        
+
         return substrate.query('SubtensorModule', 'BlockAtRegistration', [self.netuid, uid])
 
 
     def should_run_evaluation(
-        self, 
-        uid: int, 
+        self,
+        uid: int,
         max_model_size_gbs: int,
-        current_block: int, 
+        current_block: int,
         top_incentive_uids: list[int]) -> bool:
         """
-        if the last file submission is after forward start time then we skip. 
+        if the last file submission is after forward start time then we skip.
 
         Checks to perform. IF any are true, we return true:
         - check if the miner is in the top incentive UIDs
@@ -148,10 +168,10 @@ class ModelState:
 
         if self.is_valid_repo is False:
             bt.logging.info(f"Unable to access repository or Submission was considered invalid - skipping evaluation")
-            return False 
+            return False
 
-        # if the miner was registered 48 hours before the last metadata sync 
-        # 14400 blocks per 48 hours 
+        # if the miner was registered 48 hours before the last metadata sync
+        # 14400 blocks per 48 hours
         n_hours_ago = 420000
         miner_reg_block = self._get_miner_registration_block(uid)
         bt.logging.info(f"block at 48 hours ago: {(current_block - n_hours_ago)} and miner registration block: {miner_reg_block}")
@@ -170,7 +190,7 @@ class ModelState:
         if not self.last_commit_date or not self.last_safetensor_update:
             bt.logging.info(f"Unable to get last commit date: {self.last_commit_date} or last safetensor update: {self.last_safetensor_update}")
             return False
-        
+
         self.repo_size = self._get_repo_size()
         if self.repo_size < 12:
             bt.logging.info(f"Model size is too small - skipping evaluation")
@@ -214,4 +234,3 @@ class ModelState:
 
 
 
-    
