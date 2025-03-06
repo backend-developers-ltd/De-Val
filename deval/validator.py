@@ -92,7 +92,19 @@ class Validator(BaseValidatorNeuron):
                 self.config.neuron.timeout
             )
 
-            self.task_repo = TaskRepository(allowed_models=self.allowed_models)
+            # Dynamically load custom TaskRepository if specified
+            if self.config.neuron.task_repository_class:
+                try:
+                    module_path, class_name = self.config.neuron.task_repository_class.rsplit('.', 1)
+                    module = __import__(module_path, fromlist=[class_name])
+                    task_repo_class = getattr(module, class_name)
+                    self.task_repo = task_repo_class(allowed_models=self.allowed_models)
+                except (ImportError, AttributeError) as e:
+                    bt.logging.error(f"Failed to load custom TaskRepository '{self.config.neuron.task_repository_class}': {e}")
+                    bt.logging.info("Falling back to default TaskRepository")
+                    self.task_repo = TaskRepository(allowed_models=self.allowed_models)
+            else:
+                self.task_repo = TaskRepository(allowed_models=self.allowed_models)
 
             # generate all tasks for miners to be evaluated on
             self.task_repo.generate_all_tasks(task_probabilities=self.task_sample_rate)
