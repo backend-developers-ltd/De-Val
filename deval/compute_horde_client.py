@@ -1,3 +1,6 @@
+import random
+
+import math
 import pickle
 import time
 
@@ -7,7 +10,9 @@ from compute_horde_sdk.v1 import (
     InlineInputVolume,
     HuggingfaceInputVolume,
     ExecutorClass,
+    ComputeHordeJob,
     ComputeHordeJobStatus,
+    ComputeHordeError,
 )
 
 from deval.contest import DeValContest
@@ -69,9 +74,48 @@ class ComputeHordeClient:
         miner_state: ModelState,
         task_repo: TaskRepository,
     ) -> ModelState:
-        task_repo_pkl = pickle.dumps(task_repo)
-
         bt.logging.info("Running organic job on Compute Horde.")
+        job, result = await self.run_job(contest, miner_state, task_repo)
+
+        if self.should_cross_validate():
+            await self.cross_validate(job, result, contest, miner_state, task_repo)
+
+        return result
+
+    def should_cross_validate(self) -> bool:
+        return random.random() < 0.25
+
+    async def cross_validate(
+        self,
+        job: ComputeHordeJob,
+        result: ModelState,
+        contest: DeValContest,
+        miner_state: ModelState,
+        task_repo: TaskRepository,
+    ):
+        bt.logging.info("Running cross-validation job on Compute Horde.")
+        try:
+            trusted_job, trusted_result = await self.run_job(
+                contest, miner_state, task_repo, on_trusted_miner=True
+            )
+        except ComputeHordeError as e:
+            bt.logging.error(f"Failed to run cross-validation job: {e}")
+            return
+
+        if not self.results_similar(result, trusted_result):
+            try:
+                await self.client.report_cheated_job(job.uuid)
+            except ComputeHordeError as e:
+                bt.logging.error(f"Failed to report cheated job {job.uuid}: {e}")
+
+    async def run_job(
+        self,
+        contest: DeValContest,
+        miner_state: ModelState,
+        task_repo: TaskRepository,
+        on_trusted_miner: bool = False,
+    ) -> tuple[ComputeHordeJob, ModelState]:
+        task_repo_pkl = pickle.dumps(task_repo)
 
         job = await self.client.create_job(
             executor_class=self.executor_class,
@@ -98,6 +142,7 @@ class ComputeHordeClient:
                     repo_id=miner_state.get_model_url()
                 ),
             },
+            on_trusted_miner=on_trusted_miner,
         )
 
         start = time.time()
@@ -107,18 +152,39 @@ class ComputeHordeClient:
         time_took = time.time() - start
 
         if job.result is None:
-            raise RuntimeError("Job result is None. Check logs for more details.")
+            raise RuntimeError(
+                f"Job {job.uuid} result is None. Check logs for more details."
+            )
 
         bt.logging.info(job.result.stdout)
 
         if job.status != ComputeHordeJobStatus.COMPLETED:
             raise RuntimeError(
-                f"Job status is {job.status}. Check logs for more details."
+                f"Job {job.uuid} status is {job.status}. Check logs for more details."
             )
 
-        bt.logging.success(f"Job finished in {time_took} seconds")
+        bt.logging.success(f"Job {job.uuid} finished in {time_took} seconds")
 
         model_state_pkl = job.result.artifacts[COMPUTE_HORDE_ARTIFACT_OUTPUT_PATH]
 
         miner_state: ModelState = pickle.loads(model_state_pkl)
-        return miner_state
+
+        return job, miner_state
+
+    def results_similar(self, result: ModelState, trusted_result: ModelState) -> bool:
+        for task_name, trusted_rewards in trusted_result.rewards.items():
+            rewards = result.rewards.get(task_name, [])
+            if len(rewards) != len(trusted_rewards):
+                bt.logging.warning(
+                    f"Number of rewards for task {task_name} is different, miner: {len(rewards)} rewards, trusted_miner: {len(trusted_rewards)} rewards."
+                )
+                return False
+
+            for reward, trusted_reward in zip(rewards, trusted_rewards):
+                if not math.isclose(reward, trusted_reward, abs_tol=0.1):
+                    bt.logging.warning(
+                        f"Reward for task {task_name} is different, miner: {reward}, trusted_miner: {trusted_reward}."
+                    )
+                    return False
+
+        return True
