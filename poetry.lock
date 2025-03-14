@@ -892,8 +892,8 @@ pydantic = ">=2.10,<3"
 [package.source]
 type = "git"
 url = "https://github.com/backend-developers-ltd/ComputeHorde.git"
-reference = "HEAD"
-resolved_reference = "553dd23e25062b60e100aff8de1e2839aefebcb2"
+reference = "69ebbce89aee2da8c53a9608f780452a0842d855"
+resolved_reference = "69ebbce89aee2da8c53a9608f780452a0842d855"
 subdirectory = "compute_horde_sdk"
 
 [[package]]
@@ -5208,4 +5208,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11,<3.13"
-content-hash = "10d066260e348911f97e16c07cf7c880338b1e4a31031a3afb8add4913a65821"
+content-hash = "74319ad639b72fcef77d7e2d3a59af1dd53fb636982cb6ddfe6428193acccd7a"
