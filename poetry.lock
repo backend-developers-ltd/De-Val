@@ -893,7 +893,7 @@ pydantic = ">=2.10,<3"
 type = "git"
 url = "https://github.com/backend-developers-ltd/ComputeHorde.git"
 reference = "HEAD"
-resolved_reference = "2cc070defad95fd7e04ba29f8498bc60f25ea595"
+resolved_reference = "553dd23e25062b60e100aff8de1e2839aefebcb2"
 subdirectory = "compute_horde_sdk"
 
 [[package]]
