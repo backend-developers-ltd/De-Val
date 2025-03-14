@@ -1,5 +1,7 @@
 import argparse
 import asyncio
+import os
+import pickle
 import sys
 import time
 from uuid import uuid4
@@ -78,15 +80,20 @@ metadata_store = ChainModelMetadataStore(
     subtensor=subtensor, wallet=None, subnet_uid=15
 )
 
-print("Initializing tasks and contest")
-task_repo = TaskRepository(
-    allowed_models=allowed_models, refresh_models_after_load=False
-)
+if os.path.exists("task_repo.pkl"):
+    print("Loading task repo from file")
+    with open("task_repo.pkl", "rb") as f:
+        task_repo = pickle.load(f)
+else:
+    task_repo = TaskRepository(allowed_models=allowed_models)
 
-print("Generating the tasks")
-task_repo.generate_all_tasks(task_probabilities=task_sample_rate)
+    print("Generating the tasks")
+    task_repo.generate_all_tasks(task_probabilities=task_sample_rate)
+    with open("task_repo.pkl", "wb") as f:
+        pickle.dump(task_repo, f)
 
 chain_metadata = metadata_store.retrieve_model_metadata(hotkey)
+assert chain_metadata is not None, "Chain metadata not found"
 miner_state = ModelState(repo_id, model_id, uid, netuid=15)
 miner_state.add_miner_coldkey(coldkey)
 miner_state.add_chain_metadata(chain_metadata)
@@ -104,6 +111,7 @@ compute_horde_client = ComputeHordeClient(wallet.hotkey)
 
 
 async def run_job():
+    task_repo.refresh_models_after_load = False
     new_miner_state = await compute_horde_client.run_epoch_on_compute_horde(
         contest,
         miner_state,

@@ -37,6 +37,13 @@ def get_args():
         help="Timeout (int, optional)",
         default=60 * 10,
     )
+    parser.add_argument(
+        "--random-seed",
+        type=int,
+        required=False,
+        help="Random seed (int, optional)",
+        default=0,
+    )
     return parser.parse_args()
 
 
@@ -78,6 +85,7 @@ def main():
             **os.environ.copy(),
             "MODEL_VOLUME_DIR": COMPUTE_HORDE_VOLUME_MODEL_PATH,
             "PYTHONUNBUFFERED": "1",
+            "RANDOM_SEED": str(args.random_seed),
         },
     ) as uvicorn_process:
 
