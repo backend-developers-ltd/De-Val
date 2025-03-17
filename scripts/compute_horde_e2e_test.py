@@ -22,10 +22,6 @@ from deval.task_repository import TaskRepository
 from deval.tasks.task import TasksEnum
 from deval.utils.logging import WandBLogger
 
-wallet = bittensor.wallet(name="default", hotkey="default")
-
-# params for chain commit
-subtensor = bittensor.subtensor()
 
 allowed_models = ["gpt-4o", "gpt-4o-mini", "mistral-7b", "claude-3.5", "command-r-plus"]
 
@@ -41,12 +37,23 @@ def get_args():
     parser.add_argument(
         "--coldkey", type=str, required=True, help="Coldkey (string, required)"
     )
-
+    parser.add_argument(
+        "--bittensor-wallet", type=str, default="default", help="Bittensor wallet name (string, default='default')"
+    )
+    parser.add_argument(
+        "--bittensor-hotkey", type=str, default="default", help="Bittensor hotkey name (string, default='default')"
+    )
     return parser.parse_args()
 
 bittensor.logging.set_console()
 
 args = get_args()
+
+
+wallet = bittensor.wallet(name=args.bittensor_wallet, hotkey=args.bittensor_hotkey)
+
+# params for chain commit
+subtensor = bittensor.subtensor()
 
 
 repo_id, model_id = args.hf_id.split("/")
