@@ -155,7 +155,7 @@ class ComputeHordeClient:
                     COMPUTE_HORDE_VOLUME_MINER_STATE_FILENAME, miner_state_pkl
                 ),
                 COMPUTE_HORDE_VOLUME_TASK_REPO_DIR: InlineInputVolume.from_file_contents(
-                    COMPUTE_HORDE_VOLUME_TASK_REPO_FILENAME, task_repo_pkl
+                    COMPUTE_HORDE_VOLUME_TASK_REPO_FILENAME, task_repo_pkl, compress=True
                 ),
                 COMPUTE_HORDE_VOLUME_MODEL_PATH: HuggingfaceInputVolume(
                     repo_id=miner_state.get_model_url()
