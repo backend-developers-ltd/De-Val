@@ -72,11 +72,10 @@ task_sample_rate = [
     (TasksEnum.COMPLETENESS.value, 1),
 ]
 active_tasks = [t[0] for t in task_sample_rate]
-reward_pipeline = RewardPipeline(selected_tasks=active_tasks, device="cuda")
 
 forward_start_time = int(time.time())
 contest = DeValContest(
-    reward_pipeline,
+    None,
     forward_start_time,
     timeout,  # not actually used
 )
