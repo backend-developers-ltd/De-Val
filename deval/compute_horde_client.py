@@ -1,3 +1,4 @@
+import asyncio
 import random
 
 import math
@@ -93,6 +94,9 @@ class ComputeHordeClient:
         job, result = await self.run_job(contest, miner_state, task_repo)
 
         if self.should_cross_validate():
+            # Only useful if reusing the same miner, it will reject the second job if started immediately.
+            # TODO: Remove this.
+            await asyncio.sleep(15)
             await self.cross_validate(job, result, contest, miner_state, task_repo)
 
         return result
