@@ -13,6 +13,7 @@ from compute_horde_sdk.v1 import (
     ExecutorClass,
     ComputeHordeJob,
     ComputeHordeJobStatus,
+    ComputeHordeJobSpec,
 )
 
 from deval.contest import DeValContest
@@ -90,55 +91,10 @@ class ComputeHordeClient:
         miner_state: ModelState,
         task_repo: TaskRepository,
     ) -> ModelState:
-        bt.logging.info("Running organic job on Compute Horde.")
-        job, result = await self.run_job(contest, miner_state, task_repo)
-
-        if self.should_cross_validate():
-            # Only useful if reusing the same miner, it will reject the second job if started immediately.
-            # TODO: Remove this.
-            await asyncio.sleep(15)
-            await self.cross_validate(job, result, contest, miner_state, task_repo)
-
-        return result
-
-    def should_cross_validate(self) -> bool:
-        return random.random() < CROSS_VALIDATION_CHANCE
-
-    async def cross_validate(
-        self,
-        job: ComputeHordeJob,
-        result: ModelState,
-        contest: DeValContest,
-        miner_state: ModelState,
-        task_repo: TaskRepository,
-    ):
-        bt.logging.info("Running cross-validation job on Compute Horde.")
-        try:
-            trusted_job, trusted_result = await self.run_job(
-                contest, miner_state, task_repo, on_trusted_miner=True
-            )
-        except Exception as e:
-            bt.logging.error(f"Failed to run cross-validation job: {e}")
-            return
-
-        if not self.results_similar(result, trusted_result):
-            bt.logging.warning(f"Results are not similar, reporting cheated job {job.uuid}.")
-            try:
-                await self.client.report_cheated_job(job.uuid)
-            except Exception as e:
-                bt.logging.error(f"Failed to report cheated job {job.uuid}: {e}")
-
-    async def run_job(
-        self,
-        contest: DeValContest,
-        miner_state: ModelState,
-        task_repo: TaskRepository,
-        on_trusted_miner: bool = False,
-    ) -> tuple[ComputeHordeJob, ModelState]:
         task_repo_pkl = pickle.dumps(task_repo)
         miner_state_pkl = pickle.dumps(miner_state)
 
-        job = await self.client.create_job(
+        job_spec = ComputeHordeJobSpec(
             executor_class=self.executor_class,
             job_namespace=COMPUTE_HORDE_JOB_NAMESPACE,
             docker_image=COMPUTE_HORDE_JOB_DOCKER_IMAGE,
@@ -165,10 +121,56 @@ class ComputeHordeClient:
                     repo_id=miner_state.get_model_url()
                 ),
             },
-            on_trusted_miner=on_trusted_miner,
         )
 
+        bt.logging.info("Running organic job on Compute Horde.")
+
+        job, result = await self.run_job(job_spec)
+
+        if self.should_cross_validate():
+            # Only useful if reusing the same miner, it will reject the second job if started immediately.
+            # TODO: Remove this.
+            await asyncio.sleep(15)
+            await self.cross_validate(job, result, job_spec)
+
+        return result
+
+    def should_cross_validate(self) -> bool:
+        return random.random() < CROSS_VALIDATION_CHANCE
+
+    async def cross_validate(
+        self,
+        job: ComputeHordeJob,
+        result: ModelState,
+        job_spec: ComputeHordeJobSpec,
+    ):
+        bt.logging.info("Running cross-validation job on Compute Horde.")
+        try:
+            trusted_job, trusted_result = await self.run_job(
+                job_spec, on_trusted_miner=True
+            )
+        except Exception as e:
+            bt.logging.error(f"Failed to run cross-validation job: {e}")
+            return
+
+        if not self.results_similar(result, trusted_result):
+            bt.logging.warning(f"Results are not similar, reporting cheated job {job.uuid}.")
+            try:
+                await self.client.report_cheated_job(job.uuid)
+            except Exception as e:
+                bt.logging.error(f"Failed to report cheated job {job.uuid}: {e}")
+
+    async def run_job(
+        self,
+        job_spec: ComputeHordeJobSpec,
+        on_trusted_miner: bool = False,
+    ) -> tuple[ComputeHordeJob, ModelState]:
         start = time.time()
+
+        job = await self.client.run_until_complete(
+            job_spec,
+            on_trusted_miner=on_trusted_miner,
+        )
 
         await job.wait(timeout=COMPUTE_HORDE_JOB_TIMEOUT)
 
