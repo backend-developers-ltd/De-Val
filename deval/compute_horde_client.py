@@ -169,10 +169,10 @@ class ComputeHordeClient:
 
         job = await self.client.run_until_complete(
             job_spec,
+            job_attempt_callback=lambda job_attempt: bt.logging.info("Job attempt %s", job_attempt.uuid),
             on_trusted_miner=on_trusted_miner,
+            timeout=COMPUTE_HORDE_JOB_TIMEOUT,
         )
-
-        await job.wait(timeout=COMPUTE_HORDE_JOB_TIMEOUT)
 
         time_took = time.time() - start
 
