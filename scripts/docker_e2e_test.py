@@ -25,7 +25,7 @@ netuid = 202
 max_model_size_gbs = 18
 
 # params for chain commit 
-model_url = "deval-core/base-eval-test"
+model_url = f"{repo_id}/{model_id}"
 subtensor = bt.subtensor(network='test')
 coldkey = "5E7b6f5ohdapBMpHTZ44L6N5qzJcCTroGVMPiHUA551x2Tvt"
 hotkey = "5HGiNFJApXHkMV9RoWAVYhKopuXG7VpvirABf3EyKcn1kAkn"
