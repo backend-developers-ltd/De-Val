@@ -1,26 +1,24 @@
+import sys
+import time
+
+import bittensor as bt
+from dotenv import load_dotenv, find_dotenv
+
 from deval.contest import DeValContest
 from deval.validator import Validator
-import time
 from deval.rewards.pipeline import RewardPipeline
 from deval.task_repository import TaskRepository
-from dotenv import load_dotenv, find_dotenv
 from deval.model.model_state import ModelState
 from deval.tasks.task import TasksEnum
 from deval.api.miner_docker_client import MinerDockerClient
 from deval.utils.logging import WandBLogger
 from deval.model.chain_metadata import ChainModelMetadataStore
-import bittensor as bt 
-
-
-
-
 
 # initialize
 _ = load_dotenv(find_dotenv())
 allowed_models = ["gpt-4o-mini"]
 
-repo_id = "deval-core"
-model_id = "base-eval-test"
+repo_id, model_id = (sys.argv[1] if len(sys.argv) >= 2 else "deval-core/base-eval-test").split("/")
 timeout = 600
 uid = 1
 max_model_size_gbs = 18
