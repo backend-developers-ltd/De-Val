@@ -21,6 +21,7 @@ allowed_models = ["gpt-4o-mini"]
 repo_id, model_id = (sys.argv[1] if len(sys.argv) >= 2 else "deval-core/base-eval-test").split("/")
 timeout = 600
 uid = 1
+netuid = 202
 max_model_size_gbs = 18
 
 # params for chain commit 
@@ -55,14 +56,14 @@ contest = DeValContest(
 miner_docker_client = MinerDockerClient()
 wandb_logger = WandBLogger(None, None, active_tasks, None, force_off=True)
 metadata_store = ChainModelMetadataStore(
-    subtensor=subtensor, wallet=None, subnet_uid=202
+    subtensor=subtensor, wallet=None, subnet_uid=netuid
 )
 
 print("Generating the tasks")
 task_repo.generate_all_tasks(task_probabilities=task_sample_rate)
 
 chain_metadata = metadata_store.retrieve_model_metadata(hotkey)
-miner_state = ModelState(repo_id, model_id, uid)
+miner_state = ModelState(repo_id, model_id, uid, netuid)
 miner_state.add_miner_coldkey(coldkey)
 
 print("Deciding if we should run evaluation ")
