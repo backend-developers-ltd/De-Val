@@ -5,6 +5,17 @@ from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
 
 COMPUTE_HORDE_VALIDATOR_HOTKEY = os.environ.get("COMPUTE_HORDE_VALIDATOR_HOTKEY")
+"""
+Hotkey ss58 address of the ComputeHorde validator who will do the job.
+Note: not the same as ``COMPUTE_HORDE_HOTKEY``, although will usually be the ss58 address of it.
+"""
+
+COMPUTE_HORDE_WALLET = os.environ.get("COMPUTE_HORDE_WALLET")
+"""Wallet to sign ComputeHorde messages with. If left empty, the validator's wallet will be used."""
+
+COMPUTE_HORDE_HOTKEY = os.environ.get("COMPUTE_HORDE_HOTKEY")
+"""Hotkey to sign ComputeHorde messages with. If left empty, the validator's hotkey will be used."""
+
 COMPUTE_HORDE_EXECUTOR_CLASS = os.environ.get("COMPUTE_HORDE_EXECUTOR_CLASS")
 COMPUTE_HORDE_FACILITATOR_URL = os.environ.get("COMPUTE_HORDE_FACILITATOR_URL")
 COMPUTE_HORDE_JOB_DOCKER_IMAGE = os.environ.get("COMPUTE_HORDE_JOB_DOCKER_IMAGE")

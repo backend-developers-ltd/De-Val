@@ -23,6 +23,8 @@ from deval.compute_horde_settings import (
     COMPUTE_HORDE_FACILITATOR_URL,
     COMPUTE_HORDE_JOB_NAMESPACE,
     COMPUTE_HORDE_VALIDATOR_HOTKEY,
+    COMPUTE_HORDE_WALLET,
+    COMPUTE_HORDE_HOTKEY,
     COMPUTE_HORDE_EXECUTOR_CLASS,
     COMPUTE_HORDE_JOB_DOCKER_IMAGE,
     COMPUTE_HORDE_JOB_TIMEOUT,
@@ -59,7 +61,7 @@ TASKS_REWARD_ABS_TOL = {
 
 
 class ComputeHordeClient:
-    def __init__(self, keypair: bt.Keypair):
+    def __init__(self, keypair: bt.Keypair | None = None):
         missing_settings = [
             setting for setting in _REQUIRED_SETTINGS if not globals().get(setting)
         ]
@@ -68,6 +70,17 @@ class ComputeHordeClient:
                 f"Required settings: {', '.join(missing_settings)} are not set. "
                 "Please set them in your .env file."
             )
+
+        if COMPUTE_HORDE_WALLET and COMPUTE_HORDE_HOTKEY:
+            bt.logging.info(
+                f"Using hotkey {COMPUTE_HORDE_HOTKEY} from wallet {COMPUTE_HORDE_WALLET} to sign ComputeHorde jobs."
+            )
+            keypair = bt.wallet(
+                name=COMPUTE_HORDE_WALLET, hotkey=COMPUTE_HORDE_HOTKEY
+            ).hotkey()
+
+        if keypair is None:
+            raise ValueError("No keypair provided.")
 
         self.keypair = keypair
         self.executor_class = (
@@ -115,7 +128,9 @@ class ComputeHordeClient:
                     COMPUTE_HORDE_VOLUME_MINER_STATE_FILENAME, miner_state_pkl
                 ),
                 COMPUTE_HORDE_VOLUME_TASK_REPO_DIR: InlineInputVolume.from_file_contents(
-                    COMPUTE_HORDE_VOLUME_TASK_REPO_FILENAME, task_repo_pkl, compress=True
+                    COMPUTE_HORDE_VOLUME_TASK_REPO_FILENAME,
+                    task_repo_pkl,
+                    compress=True,
                 ),
                 COMPUTE_HORDE_VOLUME_MODEL_PATH: HuggingfaceInputVolume(
                     repo_id=miner_state.get_model_url()
@@ -154,7 +169,9 @@ class ComputeHordeClient:
             return
 
         if not self.results_similar(result, trusted_result):
-            bt.logging.warning(f"Results are not similar, reporting cheated job {job.uuid}.")
+            bt.logging.warning(
+                f"Results are not similar, reporting cheated job {job.uuid}."
+            )
             try:
                 await self.client.report_cheated_job(job.uuid)
             except Exception as e:
@@ -207,7 +224,9 @@ class ComputeHordeClient:
 
             if len(trusted_rewards) < 3:
                 # Not enough samples
-                bt.logging.debug(f"Only {len(trusted_rewards)} samples for {task_name}, skipping comparison.")
+                bt.logging.debug(
+                    f"Only {len(trusted_rewards)} samples for {task_name}, skipping comparison."
+                )
                 continue
 
             avg_reward = sum(rewards) / len(rewards)

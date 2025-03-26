@@ -17,7 +17,6 @@ from deval.contest import DeValContest
 from deval.compute_horde_client import ComputeHordeClient
 from deval.model.chain_metadata import ChainModelMetadataStore
 from deval.model.model_state import ModelState
-from deval.rewards.pipeline import RewardPipeline
 from deval.task_repository import TaskRepository
 from deval.tasks.task import TasksEnum
 from deval.utils.logging import WandBLogger
