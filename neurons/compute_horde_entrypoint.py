@@ -125,6 +125,8 @@ def main():
         else:
             bt.logging.info("Invalid model, epoch not ran")
 
+        bt.logging.info(f"Rewards for uid {miner_state.uid} are: {miner_state.rewards}")
+
         with open(COMPUTE_HORDE_ARTIFACT_OUTPUT_PATH, "wb") as f:
             pickle.dump(miner_state, f)
 
