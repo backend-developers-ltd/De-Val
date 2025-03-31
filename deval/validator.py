@@ -138,7 +138,9 @@ class Validator(BaseValidatorNeuron):
                     bt.logging.info(f"Rewards for uid: {uid} are: {miner_state.rewards}")
 
                 # update contest
-                self.contest.update_model_state_with_rewards(miner_state) 
+                print(f"DEBUG_CONTEST_UPDATE {miner_state.rewards}")
+                self.contest.update_model_state_with_rewards(miner_state)
+                print(f"DEBUG_CONTEST_UPDATE {self.contest.model_rewards=}")
                 self.queried_uids.add((uid, hotkey))
 
                 if is_valid:
