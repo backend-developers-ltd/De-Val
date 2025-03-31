@@ -156,6 +156,7 @@ class Validator(BaseValidatorNeuron):
 
         # update scores for moving average and pass those to contest
         denom = sum([len(tasks) for tasks in self.task_repo.tasks.values()])
+        print(f"DEBUG_SET_WEIGHTS {self.contest.model_rewards=} {denom=}")
         formatted_scores = self.update_scores(self.contest.model_rewards, denom)
         self.weights = self.contest.rank_and_select_winners(formatted_scores)
         self.save_state(save_weights=True)
