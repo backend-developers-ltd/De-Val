@@ -177,11 +177,21 @@ class Validator(BaseValidatorNeuron):
         if not is_valid:
             return miner_state
 
-        ch_miner_state = await self.compute_horde_client.run_epoch_on_compute_horde(
-            contest=self.contest,
+        job_result = await self.compute_horde_client.run_epoch_on_compute_horde(
             miner_state=miner_state,
             task_repo=self.task_repo,
         )
+
+        is_valid = self.contest.validate_model(
+            miner_state=miner_state,
+            model_hash=job_result.model_hash,
+            model_coldkey=job_result.model_coldkey,
+            container_size=0,
+            max_model_size_in_gbs=constants.max_model_size_gbs + 1,
+        )
+        if not is_valid:
+            return miner_state
+
         miner_state.rewards = ch_miner_state.rewards
         return miner_state
 
@@ -197,15 +207,7 @@ class Validator(BaseValidatorNeuron):
         valid_connection = miner_docker_client.initialize_miner_api(miner_state.get_model_url())
         container_size = miner_docker_client.get_container_size()
         model_hash = miner_docker_client.get_model_hash()
-        if model_hash is None:
-            bt.logging.info(f"No model hash found for uid: {miner_state.uid}")
-            return miner_state
-
         model_coldkey = miner_docker_client.get_model_coldkey()
-        if model_coldkey is None:
-            bt.logging.info(f"No model coldkey found for uid: {miner_state.uid}")
-            return miner_state
-
         bt.logging.info(f"Recording model hash: {model_hash} for uid: {miner_state.uid} with coldkey: {model_coldkey}")
         is_valid = contest.validate_model(miner_state, model_hash, model_coldkey, container_size, constants.max_model_size_gbs+ 2)
         if not is_valid:

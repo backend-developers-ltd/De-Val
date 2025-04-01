@@ -1,5 +1,6 @@
 import asyncio
 import random
+from dataclasses import dataclass
 
 import math
 import pickle
@@ -19,9 +20,10 @@ from compute_horde_sdk.v1 import (
 from deval.contest import DeValContest
 from deval.model.model_state import ModelState
 from deval.compute_horde_settings import (
-    COMPUTE_HORDE_ARTIFACT_OUTPUT_PATH,
+    COMPUTE_HORDE_ARTIFACT_MODEL_COLDKEY_PATH, COMPUTE_HORDE_ARTIFACT_MODEL_HASH_PATH,
+    COMPUTE_HORDE_ARTIFACT_MODEL_STATE_PATH,
     COMPUTE_HORDE_FACILITATOR_URL,
-    COMPUTE_HORDE_JOB_NAMESPACE,
+    COMPUTE_HORDE_JOB_MAX_ATTEMPTS, COMPUTE_HORDE_JOB_NAMESPACE,
     COMPUTE_HORDE_VALIDATOR_HOTKEY,
     COMPUTE_HORDE_WALLET,
     COMPUTE_HORDE_HOTKEY,
@@ -44,7 +46,7 @@ _REQUIRED_SETTINGS = (
     "COMPUTE_HORDE_VALIDATOR_HOTKEY",
 )
 
-CROSS_VALIDATION_CHANCE = 0.25
+CROSS_VALIDATION_CHANCE = 0.1
 """Currently, cross validation is random, this specifies the fraction of jobs to be cross-validated."""
 
 TASKS_REWARD_ABS_TOL = {
@@ -56,8 +58,17 @@ TASKS_REWARD_ABS_TOL = {
 """Absolute tolerance for average rewards comparison."""
 # Currently, require (average) rewards to be within 5% of each other for all tasks.
 # Should be adjusted if needed:
-# * too low: might report false positives
-# * too high: might not catch cheating miners
+# - too low: might report false positives
+# - too high: might not catch cheating miners
+
+
+# Note: there are classes ComputeHordeClient and ComputeHordeJobResult in the SDK, these are not the same.
+
+@dataclass
+class ComputeHordeJobResult:
+    model_state: ModelState
+    model_hash: str
+    model_coldkey: str
 
 
 class ComputeHordeClient:
@@ -100,10 +111,9 @@ class ComputeHordeClient:
 
     async def run_epoch_on_compute_horde(
         self,
-        contest: DeValContest,
         miner_state: ModelState,
         task_repo: TaskRepository,
-    ) -> ModelState:
+    ) -> ComputeHordeJobResult:
         task_repo_pkl = pickle.dumps(task_repo)
         miner_state_pkl = pickle.dumps(miner_state)
 
@@ -112,12 +122,8 @@ class ComputeHordeClient:
             job_namespace=COMPUTE_HORDE_JOB_NAMESPACE,
             docker_image=COMPUTE_HORDE_JOB_DOCKER_IMAGE,
             args=[
-                "poetry",
-                "run",
                 "python",
                 "neurons/compute_horde_entrypoint.py",
-                "--timeout",
-                str(contest.timeout),
                 "--random-seed",
                 str(0),
             ],
@@ -143,7 +149,7 @@ class ComputeHordeClient:
         job, result = await self.run_job(job_spec)
 
         if self.should_cross_validate():
-            # Only useful if reusing the same miner, it will reject the second job if started immediately.
+            # Only useful if reusing the same miner - it will reject the second job if started immediately.
             # TODO: Remove this.
             await asyncio.sleep(15)
             await self.cross_validate(job, result, job_spec)
@@ -156,7 +162,7 @@ class ComputeHordeClient:
     async def cross_validate(
         self,
         job: ComputeHordeJob,
-        result: ModelState,
+        result: ComputeHordeJobResult,
         job_spec: ComputeHordeJobSpec,
     ):
         bt.logging.info("Running cross-validation job on Compute Horde.")
@@ -181,15 +187,15 @@ class ComputeHordeClient:
         self,
         job_spec: ComputeHordeJobSpec,
         on_trusted_miner: bool = False,
-    ) -> tuple[ComputeHordeJob, ModelState]:
-        job = await self.client.create_job(
-            job_spec,
-            on_trusted_miner=on_trusted_miner,
-        )
-
+    ) -> tuple[ComputeHordeJob, ComputeHordeJobResult]:
         start = time.time()
 
-        await job.wait(timeout=COMPUTE_HORDE_JOB_TIMEOUT)
+        job = await self.client.run_until_complete(
+            job_spec,
+            on_trusted_miner=on_trusted_miner,
+            job_attempt_callback=lambda job_att: bt.logging.info(f"Job attempt {job_att.uuid}"),
+            max_attempts=COMPUTE_HORDE_JOB_MAX_ATTEMPTS,
+        )
 
         time_took = time.time() - start
 
@@ -198,7 +204,7 @@ class ComputeHordeClient:
                 f"Job {job.uuid} result is None. Check logs for more details."
             )
 
-        bt.logging.info(job.result.stdout)
+        bt.logging.info(job.result.stdout, f"Job {job.uuid} stdout:")
 
         if job.status != ComputeHordeJobStatus.COMPLETED:
             raise RuntimeError(
@@ -207,15 +213,32 @@ class ComputeHordeClient:
 
         bt.logging.success(f"Job {job.uuid} finished in {time_took} seconds")
 
-        model_state_pkl = job.result.artifacts[COMPUTE_HORDE_ARTIFACT_OUTPUT_PATH]
+        model_state_pkl = job.result.artifacts[COMPUTE_HORDE_ARTIFACT_MODEL_STATE_PATH]
+        model_hash = job.result.artifacts[COMPUTE_HORDE_ARTIFACT_MODEL_HASH_PATH]
+        model_coldkey = job.result.artifacts[COMPUTE_HORDE_ARTIFACT_MODEL_COLDKEY_PATH]
 
-        miner_state: ModelState = pickle.loads(model_state_pkl)
+        result = ComputeHordeJobResult(
+            model_state=pickle.loads(model_state_pkl),
+            model_hash=model_hash.decode("utf-8"),
+            model_coldkey=model_coldkey.decode("utf-8"),
+        )
 
-        return job, miner_state
+        return job, result
 
-    def results_similar(self, result: ModelState, trusted_result: ModelState) -> bool:
-        for task_name, trusted_rewards in trusted_result.rewards.items():
-            rewards = result.rewards.get(task_name, [])
+    def results_similar(self, result: ComputeHordeJobResult, trusted_result: ComputeHordeJobResult) -> bool:
+        # Compare model hash
+        if result.model_hash != trusted_result.model_hash:
+            bt.logging.warning(f"{result.model_hash=} does not match {trusted_result.model_hash=}")
+            return False
+
+        # Compare model coldkey
+        if result.model_coldkey != trusted_result.model_coldkey:
+            bt.logging.warning(f"{result.model_coldkey=} does not match {trusted_result.model_coldkey=}")
+            return False
+
+        # Compare model rewards
+        for task_name, trusted_rewards in trusted_result.model_state.rewards.items():
+            rewards = result.model_state.rewards.get(task_name, [])
             if len(rewards) != len(trusted_rewards):
                 bt.logging.warning(
                     f"Number of rewards for task {task_name} is different, miner: {len(rewards)} rewards, trusted_miner: {len(trusted_rewards)} rewards."
@@ -239,7 +262,7 @@ class ComputeHordeClient:
                 bt.logging.warning(
                     f"Rewards for task {task_name} are too different, "
                     f"miner: avg({rewards})={avg_reward}, trusted_miner: avg({trusted_rewards})={avg_trusted_reward}, "
-                    f"abs_tol={abs_tol}."
+                    f"for {abs_tol=}."
                 )
                 return False
 
