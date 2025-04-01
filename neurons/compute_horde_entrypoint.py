@@ -11,7 +11,9 @@ from deval.contest import DeValContest
 from deval.model.model_state import ModelState
 from deval.rewards.pipeline import RewardPipeline
 from deval.compute_horde_settings import (
-    COMPUTE_HORDE_ARTIFACT_OUTPUT_PATH,
+    COMPUTE_HORDE_ARTIFACT_MODEL_STATE_PATH,
+    COMPUTE_HORDE_ARTIFACT_MODEL_COLDKEY_PATH,
+    COMPUTE_HORDE_ARTIFACT_MODEL_HASH_PATH,
     COMPUTE_HORDE_VOLUME_MINER_STATE_PATH,
     COMPUTE_HORDE_VOLUME_MODEL_PATH,
     COMPUTE_HORDE_VOLUME_TASK_REPO_PATH,
@@ -47,22 +49,22 @@ def get_args():
     return parser.parse_args()
 
 
-def validate_model(
-    miner_state: ModelState, miner_docker_client: MinerDockerClient
-) -> bool:
-    if miner_state.coldkey != miner_docker_client.get_model_coldkey():
-        print(
-            "Mismatch between the Miner's coldkey and the Model's Coldkey. INVALID Model"
-        )
-        return False
-
-    if miner_state.chain_model_hash != miner_docker_client.get_model_hash():
-        print(
-            "Mismatch between the model hash on the chain commit and the model hash on huggingface"
-        )
-        return False
-
-    return True
+# def validate_model(
+#     miner_state: ModelState, miner_docker_client: MinerDockerClient
+# ) -> bool:
+#     if miner_state.coldkey != miner_docker_client.get_model_coldkey():
+#         print(
+#             "Mismatch between the Miner's coldkey and the Model's Coldkey. INVALID Model"
+#         )
+#         return False
+#
+#     if miner_state.chain_model_hash != miner_docker_client.get_model_hash():
+#         print(
+#             "Mismatch between the model hash on the chain commit and the model hash on huggingface"
+#         )
+#         return False
+#
+#     return True
 
 
 def main():
@@ -105,29 +107,38 @@ def main():
 
         miner_docker_client._poll_service_for_readiness(500)
 
-        is_valid = validate_model(miner_state, miner_docker_client)
-        if is_valid:
-            wandb_logger = WandBLogger(None, None, active_tasks, None, force_off=True)
+        model_hash = miner_docker_client.get_model_hash()
+        model_coldkey = miner_docker_client.get_model_coldkey()
 
-            for task_name, tasks in task_repo.get_all_tasks():
-                bt.logging.debug(f"Running task {task_name}")
-                miner_state = Validator.run_step(
-                    task_name,
-                    tasks,
-                    miner_docker_client,
-                    miner_state,
-                    contest,
-                    wandb_logger,
-                )
+        with open(COMPUTE_HORDE_ARTIFACT_MODEL_HASH_PATH, "wb") as f:
+            f.write(model_hash.encode("utf-8"))
 
-            bt.logging.debug(miner_state.rewards)
-            bt.logging.info("Completed epoch")
-        else:
-            bt.logging.info("Invalid model, epoch not ran")
+        with open(COMPUTE_HORDE_ARTIFACT_MODEL_COLDKEY_PATH, "wb") as f:
+            f.write(model_coldkey.encode("utf-8"))
+
+        # is_valid = validate_model(miner_state, miner_docker_client)
+        # if is_valid:
+        wandb_logger = WandBLogger(None, None, active_tasks, None, force_off=True)
+
+        for task_name, tasks in task_repo.get_all_tasks():
+            bt.logging.debug(f"Running task {task_name}")
+            miner_state = Validator.run_step(
+                task_name,
+                tasks,
+                miner_docker_client,
+                miner_state,
+                contest,
+                wandb_logger,
+            )
+
+        bt.logging.debug(miner_state.rewards)
+        bt.logging.info("Completed epoch")
+        # else:
+        #     bt.logging.info("Invalid model, epoch not ran")
 
         bt.logging.info(f"Rewards for uid {miner_state.uid} are: {miner_state.rewards}")
 
-        with open(COMPUTE_HORDE_ARTIFACT_OUTPUT_PATH, "wb") as f:
+        with open(COMPUTE_HORDE_ARTIFACT_MODEL_STATE_PATH, "wb") as f:
             pickle.dump(miner_state, f)
 
         bt.logging.info("Terminating miner API")

@@ -117,13 +117,11 @@ compute_horde_client = ComputeHordeClient(wallet.hotkey)
 
 async def run_job():
     task_repo.refresh_models_after_load = False
-    new_miner_state = await compute_horde_client.run_epoch_on_compute_horde(
-        contest,
-        miner_state,
-        task_repo,
-    )
+    job_result = await compute_horde_client.run_epoch_on_compute_horde(miner_state, task_repo)
 
-    print(new_miner_state.rewards)
+    print(job_result.model_hash)
+    print(job_result.model_coldkey)
+    print(job_result.model_state.rewards)
 
 
 asyncio.run(run_job())

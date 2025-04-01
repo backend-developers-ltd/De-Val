@@ -26,6 +26,18 @@ class DeValContest:
             4 : 0.025
         }
 
+    def validate_metadata(self, miner_state: ModelState) -> bool:
+        # ensure the last commit date is before forward start time
+        if self.start_time_datetime < miner_state.get_last_commit_date():
+            print(f"Miner's start date {miner_state.get_last_commit_date()} is before validators epoch start time {self.start_time_datetime}")
+            return False
+
+        if not miner_state.chain_model_hash or not miner_state.block:
+            print(f"Unable to get chain commit data including model hash: {miner_state.chain_model_hash} or block: {miner_state.block}")
+            return False
+
+        return True
+
     def validate_model(
         self, 
         miner_state: ModelState, 
@@ -34,13 +46,7 @@ class DeValContest:
         container_size: int,
         max_model_size_in_gbs: int,
     ) -> bool:
-        # ensure the last commit date is before forward start time
-        if self.start_time_datetime < miner_state.get_last_commit_date():
-            print(f"Miner's start date {miner_state.get_last_commit_date()} is before validators epoch start time {self.start_time_datetime}")
-            return False
-
-        if not miner_state.chain_model_hash or not miner_state.block:
-            print(f"Unable to get chain commit data including model hash: {miner_state.chain_model_hash} or block: {miner_state.block}")
+        if not self.validate_metadata(miner_state):
             return False
 
         if not model_hash or not model_coldkey:

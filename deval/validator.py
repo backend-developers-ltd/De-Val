@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import bittensor as bt
 import time
 from deval.base.validator import BaseValidatorNeuron
@@ -173,8 +175,7 @@ class Validator(BaseValidatorNeuron):
 
     async def run_epoch_on_compute_horde(self, miner_state: ModelState) -> ModelState:
         # Local validation that does not require Docker container.
-        is_valid = self.contest.validate_model(miner_state, None, None, 0, constants.max_model_size_gbs + 2)
-        if not is_valid:
+        if not self.contest.validate_metadata(miner_state):
             return miner_state
 
         job_result = await self.compute_horde_client.run_epoch_on_compute_horde(
@@ -182,6 +183,7 @@ class Validator(BaseValidatorNeuron):
             task_repo=self.task_repo,
         )
 
+        # Full validation after we have this data from the miner model.
         is_valid = self.contest.validate_model(
             miner_state=miner_state,
             model_hash=job_result.model_hash,
@@ -192,7 +194,7 @@ class Validator(BaseValidatorNeuron):
         if not is_valid:
             return miner_state
 
-        miner_state.rewards = ch_miner_state.rewards
+        miner_state.rewards = deepcopy(job_result.model_state.rewards)
         return miner_state
 
         
