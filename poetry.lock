@@ -894,7 +894,7 @@ tenacity = ">=9.0.0,<10.0.0"
 type = "git"
 url = "https://github.com/backend-developers-ltd/ComputeHorde.git"
 reference = "HEAD"
-resolved_reference = "22947d8bfa0bd2a2e8d551de4b0aeb2c582cc4fd"
+resolved_reference = "86c6c149859597ed5512a9dcbcba16cf345c9e9d"
 subdirectory = "compute_horde_sdk"
 
 [[package]]
