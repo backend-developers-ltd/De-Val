@@ -87,7 +87,7 @@ class ComputeHordeClient:
             )
             keypair = bt.wallet(
                 name=COMPUTE_HORDE_WALLET, hotkey=COMPUTE_HORDE_HOTKEY
-            ).hotkey()
+            ).hotkey
 
         if keypair is None:
             raise ValueError("No keypair provided.")
