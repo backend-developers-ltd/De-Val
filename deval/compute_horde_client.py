@@ -17,7 +17,6 @@ from compute_horde_sdk.v1 import (
     ComputeHordeJobSpec,
 )
 
-from deval.contest import DeValContest
 from deval.model.model_state import ModelState
 from deval.compute_horde_settings import (
     COMPUTE_HORDE_ARTIFACT_MODEL_COLDKEY_PATH, COMPUTE_HORDE_ARTIFACT_MODEL_HASH_PATH,
@@ -195,6 +194,7 @@ class ComputeHordeClient:
             on_trusted_miner=on_trusted_miner,
             job_attempt_callback=lambda job_att: bt.logging.info(f"Job attempt {job_att.uuid}"),
             max_attempts=COMPUTE_HORDE_JOB_MAX_ATTEMPTS,
+            timeout=COMPUTE_HORDE_JOB_TIMEOUT,
         )
 
         time_took = time.time() - start
